@@ -6,11 +6,47 @@
 trigger:
 - main
 
-pool: Myubuntuagentpool
+pool: sampleDevopsAgent
 
 steps:
 - task: Maven@3
   inputs:
     mavenPomFile: 'pom.xml'
-    publishJUnitResults: true
+    testResultsFiles: '**/surefire-reports/TEST-*.xml'
     goals: 'package'
+
+- script: |
+    echo "Listing contents of target directory after Maven build:"
+    ls -la target
+  displayName: 'Debug: List files in target directory'
+
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)/target'
+    Contents: '**/*.war'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+#- task: PublishPipelineArtifact@1
+#  inputs:
+#    targetPath: '$(Pipeline.Workspace)/target'
+#    artifact: 'drop'
+#    publishLocation: 'Container' 
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)'
+    artifact: 'drop'
+
+- script: |
+    echo "Listing contents of build context before Docker build:"
+    ls -la $(Build.ArtifactStagingDirectory)
+  displayName: 'Debug: List files in build context'
+
+
+- task: Docker@2
+  inputs:
+    containerRegistry: 'Sample'  # Define this service connection in Azure DevOps
+    repository: 'my-app'  # Name of the Docker repository in ACR
+    command: 'buildAndPush'
+    Dockerfile: '**/Dockerfile'  # Path to your Dockerfile
+    buildContext: '$(Build.SourcesDirectory)'  # Context where Dockerfile and WAR are located
+    tags: 'latest'
